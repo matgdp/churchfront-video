@@ -1,4 +1,4 @@
-name: Build Churchfront Video for Intel Mac
+name: Build Camera Tracker for Intel Mac
 
 on:
   workflow_dispatch:
@@ -10,37 +10,26 @@ jobs:
   intel-macos:
     runs-on: macos-15-intel
     timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: CameraTracker
     steps:
-      - name: Check out source
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-
-      - name: Check Intel toolchain
+      - name: Run Swift tests
         run: |
           test "$(uname -m)" = x86_64
-          swift --version
-
-      - name: Run Swift tests
-        run: swift test --force-resolved-versions
-
-      - name: Build and verify the app
+          swift test
+      - name: Build and verify the Intel app
         run: |
           ./build.sh
-          app="Churchfront Video.app"
-          for binary in CueVideo cuevideo-mcp; do
-            lipo "$app/Contents/MacOS/$binary" -verify_arch x86_64
-          done
-          codesign --verify --deep --strict --verbose=2 "$app"
-          package="Churchfront Video Intel"
-          mkdir "$package"
-          mv "$app" "$package/"
-          cp LICENSE NOTICE Resources/OFL.txt "$package/"
-          ditto -c -k --sequesterRsrc --keepParent "$package" Churchfront-Video-Intel.zip
-
-      - name: Upload Intel app
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+          app="dist/Camera Tracker.app"
+          lipo "$app/Contents/MacOS/CameraTracker" -verify_arch x86_64
+          codesign --verify --strict --verbose=2 "$app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" Camera-Tracker-Intel.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Churchfront-Video-Intel
-          path: Churchfront-Video-Intel.zip
+          name: Camera-Tracker-Intel
+          path: CameraTracker/Camera-Tracker-Intel.zip
           if-no-files-found: error
