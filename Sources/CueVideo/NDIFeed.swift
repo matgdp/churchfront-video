@@ -35,6 +35,8 @@ final class NDIFeed: ObservableObject, @unchecked Sendable {
     private func current(_ gen: Int) -> Bool { lock.lock(); defer { lock.unlock() }; return generation == gen }
 
     private func receive(_ gen: Int) {
+        // If the UI is busy, discard previews instead of queuing copies of old frames.
+        let frameSlot = DispatchSemaphore(value: 1)
         // The runtime may be missing, or the source not on the network yet: keep trying.
         while current(gen) {
             let opened = Self.resolve(source, wait: 800)
@@ -60,12 +62,13 @@ final class NDIFeed: ObservableObject, @unchecked Sendable {
                 }
                 lastFrame = Date()
                 // A preview doesn't need every frame: about 20 a second is plenty.
-                if lastFrame.timeIntervalSince(lastShown) >= 0.05 {
+                if lastFrame.timeIntervalSince(lastShown) >= 0.05, frameSlot.wait(timeout: .now()) == .success {
                     lastShown = lastFrame
                     let aspect = Double(ndi_frame_aspect(frame))
                     let img = Self.image(data, Int(w), Int(h), Int(stride), alpha).map { Self.squared($0, aspect: aspect) }
                     let shape = "\(w)x\(h)" + (aspect > 0 ? String(format: ", shown %.2f:1", aspect) : "")
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async { [alpha] in
+                        defer { frameSlot.signal() }
                         guard self.current(gen) else { return }
                         self.image = img
                         if self.shape != shape { self.shape = shape }

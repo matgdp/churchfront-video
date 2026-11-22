@@ -222,15 +222,16 @@ struct SourceTile: View {
     @EnvironmentObject var store: ConfigStore
 
     var camera: PTZCamera? { ptz.pictured(on: source.input, store) }
+    var showsPicture: Bool { booth.showLiveThumbnails && (camera != nil || !(source.ndi ?? "").isEmpty) }
     var isLive: Bool { atem.state.program[booth.me] == source.input }
     var isNext: Bool { atem.state.preview[booth.me] == source.input }
 
     var body: some View {
         Button { atem.setPreview(source.input, me: booth.me) } label: {
             ZStack(alignment: .bottomLeading) {
-                if let camera {
+                if booth.showLiveThumbnails, let camera {
                     CameraVideo(camera: camera).id(camera.id)
-                } else if let n = source.ndi, !n.isEmpty {
+                } else if booth.showLiveThumbnails, let n = source.ndi, !n.isEmpty {
                     NDIVideo(source: n).id(n)
                 } else {
                     T.surfaceRaised
@@ -244,7 +245,7 @@ struct SourceTile: View {
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 8).frame(height: 26)
-                .background(Capsule().fill(Color.black.opacity(camera == nil && (source.ndi ?? "").isEmpty ? 0 : 0.6)))
+                .background(Capsule().fill(Color.black.opacity(showsPicture ? 0.6 : 0)))
                 .padding(6)
             }
             .frame(maxWidth: 220, maxHeight: .infinity)

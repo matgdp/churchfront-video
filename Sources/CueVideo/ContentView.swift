@@ -147,8 +147,12 @@ struct TopMonitors: View {
         Button(action: go) {
             VStack(spacing: 2) {
                 ZStack(alignment: .topLeading) {
-                    SourcePicture(input: input, named: false)
-                    if !sourceHasPicture(input, atem.state, ptz, store) {
+                    if booth.showLiveThumbnails {
+                        SourcePicture(input: input, named: false)
+                    } else {
+                        T.surfaceRaised
+                    }
+                    if !booth.showLiveThumbnails || !sourceHasPicture(input, atem.state, ptz, store) {
                         Text(input == nil ? "Mixed" : store.routeLabel(input, atem.state)).font(.sans(9, .semibold)).foregroundStyle(T.inkMuted)
                             .lineLimit(tag == nil ? 2 : 1).multilineTextAlignment(.center).minimumScaleFactor(0.7).padding(3)
                             .padding(.top, tag == nil ? 0 : 14)

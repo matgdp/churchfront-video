@@ -13,6 +13,14 @@ final class Booth: ObservableObject {
     @Published var followPreview = UserDefaults.standard.object(forKey: "followPreview") as? Bool ?? true {
         didSet { UserDefaults.standard.set(followPreview, forKey: "followPreview") }
     }
+    #if arch(x86_64)
+    private static let defaultLiveThumbnails = false
+    #else
+    private static let defaultLiveThumbnails = true
+    #endif
+    @Published var showLiveThumbnails = UserDefaults.standard.object(forKey: "showLiveThumbnails") as? Bool ?? Booth.defaultLiveThumbnails {
+        didSet { UserDefaults.standard.set(showLiveThumbnails, forKey: "showLiveThumbnails") }
+    }
     @Published var me = 0
     @Published var showSettings = false
     /// Which view the main window shows. It always opens on Operator. Leaving Operator lets
@@ -136,7 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let parts = v.split(separator: ":").map(String.init)
             if parts.first == "engineer" { booth.show(parts.count > 1 ? EngineerSection(rawValue: parts[1]) ?? .scan : .scan) }
         }
-        if let src = env["CUEVIDEO_NDI"] ?? UserDefaults.standard.string(forKey: "ndiSource") {
+        // The old multiview has no visible monitor. Only receive it when explicitly requested.
+        if let src = env["CUEVIDEO_NDI"] {
             NDIMonitor.shared.start(src)
         }
         NDIMonitor.shared.scan()
@@ -191,6 +200,8 @@ struct BoothCommands: Commands {
             Button("Full Switcher") { booth.show(.switcher) }.keyboardShortcut("k", modifiers: [.command, .shift])
             Button("Setup") { booth.show(.setup) }
             Button("Status") { booth.show(.status) }
+            Divider()
+            Toggle("Show Live Thumbnails", isOn: $booth.showLiveThumbnails)
             Divider()
         }
         // Switching and camera commands act only from the Operator view, where the person
