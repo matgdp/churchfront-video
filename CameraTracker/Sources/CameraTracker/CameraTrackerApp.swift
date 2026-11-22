@@ -54,10 +54,10 @@ struct TrackerView: View {
     @ObservedObject var ptz: PTZController
     @ObservedObject var feed: RTSPFeed
     @ObservedObject var tracker: AutoTracker
-    @AppStorage("cameraHost") private var host = ""
-    @AppStorage("viscaPort") private var controlPort = "5678"
-    @AppStorage("rtspPort") private var rtspPort = "554"
-    @AppStorage("rtspPath") private var path = "/2"
+    @AppStorage("savedCameras") private var cameraData = Data()
+    @AppStorage("selectedCameraID") private var selectedCameraID = ""
+    @State private var editingCamera: CameraProfile?
+    @State private var connectedProfileID: UUID?
     @State private var shot = ShotSize.waist
     @State private var autoZoom = false
     @State private var message: String?
@@ -69,6 +69,14 @@ struct TrackerView: View {
         tracker = session.tracker
     }
 
+    private var savedCameras: [CameraProfile] {
+        (try? JSONDecoder().decode([CameraProfile].self, from: cameraData)) ?? []
+    }
+
+    private var selectedCamera: CameraProfile? {
+        savedCameras.first { $0.id.uuidString == selectedCameraID }
+    }
+
     private var camera: PTZCamera? { ptz.current }
     private var tracking: AutoTracker.Session? { camera.flatMap { tracker.sessions[$0.id] } }
     private var answering: Bool { camera.map { ptz.online.contains($0.id) } ?? false }
@@ -76,12 +84,21 @@ struct TrackerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                TextField("Camera IP", text: $host).accessibilityLabel("Camera IP").frame(width: 160)
-                TextField("VISCA port", text: $controlPort).accessibilityLabel("VISCA port").frame(width: 64)
-                TextField("RTSP port", text: $rtspPort).accessibilityLabel("RTSP port").frame(width: 64)
-                TextField("RTSP path", text: $path).accessibilityLabel("RTSP path").frame(width: 85)
-                Button("Connect", action: connect).disabled(host.trimmingCharacters(in: .whitespaces).isEmpty)
-                Button("Disconnect") { session.disconnect(); message = nil }.disabled(camera == nil)
+                Picker("Camera", selection: $selectedCameraID) {
+                    if selectedCamera == nil { Text("Select a camera").tag("") }
+                    ForEach(savedCameras) { profile in
+                        Text("\(profile.name) (\(profile.host))").tag(profile.id.uuidString)
+                    }
+                }
+                .frame(maxWidth: 300)
+                .disabled(savedCameras.isEmpty)
+                Button("Add Camera…") { editingCamera = CameraProfile() }
+                Button("Edit…") { editingCamera = selectedCamera }.disabled(selectedCamera == nil)
+                Button("Connect") {
+                    if let selectedCamera { connect(selectedCamera) }
+                }
+                .disabled(selectedCamera == nil || camera != nil)
+                Button("Disconnect", action: disconnect).disabled(camera == nil)
                 Spacer()
             }
             HStack(spacing: 20) {
@@ -145,12 +162,26 @@ struct TrackerView: View {
                 move("Up", "arrow.up", 0, 0.35)
                 move("Down", "arrow.down", 0, -0.35)
                 move("Right", "arrow.right", 0.35, 0)
-                HoldControl(title: "Zoom out", icon: "minus.magnifyingglass") { ptz.zoom(-0.3) } stop: { ptz.zoom(0) }
-                HoldControl(title: "Zoom in", icon: "plus.magnifyingglass") { ptz.zoom(0.3) } stop: { ptz.zoom(0) }
+                zoom("Zoom out", "minus.magnifyingglass", -0.3)
+                zoom("Zoom in", "plus.magnifyingglass", 0.3)
             }
             .disabled(!answering)
+            .id(camera?.id)
         }
         .padding(20)
+        .onAppear(perform: migrateLegacyCamera)
+        .onChange(of: selectedCameraID) { _, _ in
+            guard camera != nil, let selectedCamera, connectedProfileID != selectedCamera.id else { return }
+            connect(selectedCamera)
+        }
+        .sheet(item: $editingCamera) { profile in
+            CameraProfileEditor(
+                profile: profile,
+                existing: savedCameras.contains { $0.id == profile.id },
+                save: saveCamera,
+                remove: removeCamera
+            )
+        }
         .onChange(of: feed.live) { _, live in if !live { tracker.stopAll() } }
         .onChange(of: answering) { _, online in if !online { session.stopMotion() } }
     }
@@ -165,30 +196,70 @@ struct TrackerView: View {
         }
     }
 
-    private func connect() {
-        let address = host.trimmingCharacters(in: .whitespaces)
-        let streamPath = path.trimmingCharacters(in: .whitespaces)
-        guard let visca = UInt16(controlPort), visca > 0, let rtsp = UInt16(rtspPort), rtsp > 0,
-              streamPath.hasPrefix("/"),
-              address.range(of: #"^[A-Za-z0-9.-]+$"#, options: .regularExpression) != nil else {
-            message = "Enter a camera IP, valid ports, and a path such as /2."
+    private func migrateLegacyCamera() {
+        guard cameraData.isEmpty else {
+            if selectedCamera == nil { selectedCameraID = savedCameras.first?.id.uuidString ?? "" }
             return
         }
-        var stream = URLComponents()
-        stream.scheme = "rtsp"
-        stream.host = address
-        stream.port = Int(rtsp)
-        stream.path = streamPath
-        guard let url = stream.url else { return }
-        session.disconnect()
-        message = nil
+        let defaults = UserDefaults.standard
+        var profile = CameraProfile()
+        profile.name = "Camera 1"
+        profile.host = defaults.string(forKey: "cameraHost") ?? ""
+        profile.viscaPort = defaults.string(forKey: "viscaPort") ?? "5678"
+        profile.rtspPort = defaults.string(forKey: "rtspPort") ?? "554"
+        profile.path = defaults.string(forKey: "rtspPath") ?? "/2"
+        if let profile = profile.validated {
+            saveCamera(profile)
+        } else if profile.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            persist([])
+        } else {
+            editingCamera = profile
+        }
+    }
+
+    private func persist(_ profiles: [CameraProfile]) {
+        guard let data = try? JSONEncoder().encode(profiles) else { return }
+        cameraData = data
+    }
+
+    private func saveCamera(_ profile: CameraProfile) {
+        var profiles = savedCameras
+        if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
+            profiles[index] = profile
+        } else {
+            profiles.append(profile)
+        }
+        persist(profiles)
+        selectedCameraID = profile.id.uuidString
+        if camera != nil { connect(profile) }
+    }
+
+    private func removeCamera(_ profile: CameraProfile) {
+        let profiles = savedCameras.filter { $0.id != profile.id }
+        if connectedProfileID == profile.id { disconnect() }
+        persist(profiles)
+        if selectedCameraID == profile.id.uuidString {
+            selectedCameraID = profiles.first?.id.uuidString ?? ""
+        }
+    }
+
+    private func connect(_ profile: CameraProfile) {
+        guard let url = profile.streamURL, let port = UInt16(profile.viscaPort) else { return }
+        disconnect()
+        connectedProfileID = profile.id
         var camera = PTZCamera()
-        camera.host = address
+        camera.host = profile.host
         camera.proto = .rawTCP
-        camera.port = visca
+        camera.port = port
         ptz.cameras = [camera]
         ptz.selected = camera.id
         feed.start(url: url)
+    }
+
+    private func disconnect() {
+        session.disconnect()
+        connectedProfileID = nil
+        message = nil
     }
 
     private func follow(at point: CGPoint?) {
@@ -200,7 +271,21 @@ struct TrackerView: View {
     }
 
     private func move(_ title: String, _ icon: String, _ x: Double, _ y: Double) -> some View {
-        HoldControl(title: title, icon: icon) { ptz.drive(x: x, y: y) } stop: { ptz.stopDrive() }
+        let id = camera?.id
+        return HoldControl(title: title, icon: icon) {
+            if let id { ptz.drive(x: x, y: y, camera: id) }
+        } stop: {
+            if let id { ptz.stopDrive(camera: id) }
+        }
+    }
+
+    private func zoom(_ title: String, _ icon: String, _ speed: Double) -> some View {
+        let id = camera?.id
+        return HoldControl(title: title, icon: icon) {
+            if let id { ptz.zoom(speed, camera: id) }
+        } stop: {
+            if let id { ptz.zoom(0, camera: id) }
+        }
     }
 }
 

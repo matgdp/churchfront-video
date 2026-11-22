@@ -1,6 +1,6 @@
 # Camera Tracker
 
-A single-camera macOS app adapted from Churchfront Video. Camera Tracker uses
+A macOS app that tracks on one selected camera at a time adapted from Churchfront Video. Camera Tracker uses
 Apple Vision for person tracking, RTSP for the preview, and VISCA over TCP for
 PTZOptics movement. It runs independently of the ATEM and NDI. The app has its
 own preferences and bundle identifier.
@@ -9,11 +9,13 @@ own preferences and bundle identifier.
 
 1. Install FFmpeg with `brew install ffmpeg` if Homebrew is installed. The app
    checks `/usr/local/bin/ffmpeg` and `/opt/homebrew/bin/ffmpeg`.
-2. Open Camera Tracker, enter the same camera IP you use in Companion, and click
-   **Connect**. The default VISCA TCP port is `5678`. The default RTSP address uses
+2. Open Camera Tracker, choose **Add Camera**, enter the name and IP you use in Companion,
+   then save it and click **Connect**. The default VISCA TCP port is `5678`. The default RTSP address uses
    port `554` and path `/2`, the lower-resolution stream on many PTZOptics models.
    Use the path from your camera's web UI if it differs, for example `/1` or
    `/stream2`. This version supports RTSP streams without authentication.
+   Add more cameras the same way. The Camera menu remembers your selection. While connected,
+   choosing a different camera stops tracking on the old one and connects the newly selected camera.
 3. Wait for both VISCA and RTSP to connect. While the camera is off air, click
    someone in the preview or use **Start Tracking** to follow the person nearest
    the center. **Stop** or Escape stops tracking and continuous manual motion.
