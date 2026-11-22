@@ -29,7 +29,7 @@ jobs:
           ./build.sh
           app="Churchfront Video.app"
           for binary in CueVideo cuevideo-mcp; do
-            lipo -verify_arch x86_64 "$app/Contents/MacOS/$binary"
+            lipo "$app/Contents/MacOS/$binary" -verify_arch x86_64
           done
           codesign --verify --deep --strict --verbose=2 "$app"
           package="Churchfront Video Intel"
