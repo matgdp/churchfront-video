@@ -1,29 +1,29 @@
+import Foundation
+
 // Adapted from Churchfront Video (Copyright 2026 Churchfront LLC) for the standalone Camera Tracker.
 struct FramingRule: Codable, Hashable {
     var eyeLine: Double?
     var scale: Double?
-    var leadRoom: Double?
-    var deadX: Double?
-    var deadY: Double?
-
 }
 
-/// Tracking response, for tuning while it runs. Any left out use the built-in values.
-/// correction: pull toward the framing mark (1.2); latency: how far behind the preview picture
-/// runs, in seconds (0.45); walkThreshold: how fast (frames a second) counts as walking (0.12);
-/// zoomThreshold: how wrong the size must look before zooming, as a log ratio (0.3, about a third);
-/// zoomWait: seconds it must stay wrong first (1.5).
-struct TrackTuning: Codable, Hashable {
-    var correction: Double?
-    var latency: Double?
-    var walkThreshold: Double?
-    var zoomThreshold: Double?
-    var zoomWait: Double?
-}
+/// Fixed low-speed corrections, spaced far enough apart to see the previous movement.
+struct TrackingMotion: Equatable {
+    var pan: Double
+    var tilt: Double
 
-struct TrackingSettings {
-    var trackSpeed = 0.65
-    var trackTilt = true
-    var trackZoom = false
-    var trackTuning = TrackTuning()
+    static func correction(panError: Double, tiltError: Double) -> Self? {
+        let pan = axis(panError, tolerance: 0.12, speed: 0.28)
+        let tilt = axis(tiltError, tolerance: 0.09, speed: 0.24)
+        return pan == 0 && tilt == 0 ? nil : Self(pan: pan, tilt: tilt)
+    }
+
+    static func canKeepSubject(gap: TimeInterval, confirmedAppearance: Bool, distance: Double?) -> Bool {
+        if let distance, distance > 0.7 { return false }
+        return confirmedAppearance || gap < 0.65
+    }
+
+    private static func axis(_ error: Double, tolerance: Double, speed: Double) -> Double {
+        guard abs(error) >= tolerance else { return 0 }
+        return error > 0 ? speed : -speed
+    }
 }

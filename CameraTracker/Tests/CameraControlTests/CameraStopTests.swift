@@ -55,6 +55,36 @@ final class CameraStopTests: XCTestCase {
         XCTAssertEqual(a.zooms.last, true, "zoom wasn't stopped")
     }
 
+    func testTrackingPulseSendsMoveAndStopWithoutAnotherFrame() throws {
+        let endpoint = try FakeVISCACamera()
+        var camera = PTZCamera()
+        camera.host = "127.0.0.1"
+        camera.port = endpoint.port
+        let ptz = PTZController(load: false)
+        ptz.cameras = [camera]
+
+        ptz.trackPulse(pan: 0.28, duration: 0.15, camera: camera.id)
+        wait(2) { endpoint.moves.count >= 2 }
+
+        XCTAssertEqual(endpoint.moves.map(\.isStop), [false, true])
+    }
+
+    func testCancelledTrackingPulseDoesNotStopManualMovementLater() throws {
+        let endpoint = try FakeVISCACamera()
+        var camera = PTZCamera()
+        camera.host = "127.0.0.1"
+        camera.port = endpoint.port
+        let ptz = PTZController(load: false)
+        ptz.cameras = [camera]
+
+        ptz.trackPulse(pan: 0.28, duration: 0.6, camera: camera.id)
+        ptz.cancelTrackingMotion(camera: camera.id)
+        ptz.drive(x: -0.35, y: 0, camera: camera.id)
+        wait(0.9)
+        XCTAssertEqual(endpoint.moves.map(\.isStop), [false, true, false])
+        ptz.stopAllManual()
+    }
+
     // MARK: A Canon request fails while a stop is waiting
 
     /// Canon commands go one at a time. If one fails (here the camera turns down an exposure

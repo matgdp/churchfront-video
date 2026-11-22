@@ -94,3 +94,20 @@ final class AppearanceTests: XCTestCase {
         XCTAssertTrue(AutoTracker.detect(picture()).isEmpty)
     }
 }
+
+final class TrackingMotionTests: XCTestCase {
+    func testSmallDeviationsHoldAndLargeDeviationsUseTheSameLowSpeed() {
+        XCTAssertNil(TrackingMotion.correction(panError: 0.10, tiltError: -0.08))
+        XCTAssertEqual(TrackingMotion.correction(panError: 0.15, tiltError: 0),
+                       TrackingMotion.correction(panError: 0.65, tiltError: 0))
+        let opposite = TrackingMotion.correction(panError: -0.22, tiltError: 0.2)
+        XCTAssertEqual(opposite?.pan, -0.28)
+        XCTAssertEqual(opposite?.tilt, 0.24)
+    }
+
+    func testUnconfirmedOrMismatchedSubjectDoesNotResumeAfterGap() {
+        XCTAssertFalse(TrackingMotion.canKeepSubject(gap: 1, confirmedAppearance: false, distance: nil))
+        XCTAssertFalse(TrackingMotion.canKeepSubject(gap: 0.2, confirmedAppearance: false, distance: 0.9))
+        XCTAssertTrue(TrackingMotion.canKeepSubject(gap: 1, confirmedAppearance: true, distance: 0.25))
+    }
+}

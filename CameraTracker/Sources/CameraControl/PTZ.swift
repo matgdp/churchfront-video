@@ -1,3 +1,4 @@
+// Adapted from Churchfront Video (Copyright 2026 Churchfront LLC) for the standalone Camera Tracker.
 import Foundation
 import Network
 import Combine
@@ -961,6 +962,7 @@ public final class PTZController: ObservableObject {
 
     private let queue = DispatchQueue(label: "cuevideo.ptz")
     private var links: [UUID: PTZLink] = [:]
+    private var trackingStops: [UUID: DispatchWorkItem] = [:]
     private var lastDrive: (Int, Int)?
     /// Cameras being panned, tilted or zoomed by hand (or by Claude) right now. Main thread.
     private var moving: Set<UUID> = [], zooming: Set<UUID> = []
@@ -986,6 +988,7 @@ public final class PTZController: ObservableObject {
     private func restart() {
         let cams = cameras
         queue.async {
+            for camera in Array(self.trackingStops.keys) { self.finishTrackingPulse(camera) }
             for l in self.links.values { l.stop() }
             self.links = [:]
             for c in cams {
@@ -1037,21 +1040,32 @@ public final class PTZController: ObservableObject {
     }
 
     /// Zoom for auto tracking, -1 to 1, without counting as a manual zoom.
-    public func trackZoom(_ v: Double, camera: UUID) { with(camera) { $0.zoom(max(-1, min(1, v))) } }
-
-    /// Pan and tilt for auto tracking in the camera's own speed units (Canon: hundredths of a
-    /// degree a second), signed, without counting as a manual move.
-    public func trackDriveRaw(pan: Int, tilt: Int, camera: UUID) { with(camera) { $0.driveRaw(pan: pan, tilt: tilt) } }
-
-    /// Where a camera is now (Canon: pan and tilt in hundredths of a degree, zoom as the
-    /// horizontal angle of view in hundredths of a degree), on main; nil if it can't say.
-    public func readPosition(camera: UUID, _ done: @escaping (PTZPosition?) -> Void) {
-        with(camera) { $0.readPosition { p in DispatchQueue.main.async { done(p) } } }
+    public func trackPulse(pan: Double = 0, tilt: Double = 0, zoom: Double = 0,
+                           duration: TimeInterval, camera: UUID) {
+        queue.async {
+            guard let link = self.links[camera], self.trackingStops[camera] == nil else { return }
+            let stop = DispatchWorkItem { [weak self, weak link] in
+                guard let self, let link, link === self.links[camera] else { return }
+                self.trackingStops[camera] = nil
+                if pan != 0 || tilt != 0 { link.drive(pan: 0, tilt: 0) }
+                if zoom != 0 { link.zoom(0) }
+            }
+            self.trackingStops[camera] = stop
+            if pan != 0 || tilt != 0 { link.drive(pan: pan, tilt: tilt) }
+            if zoom != 0 { link.zoom(zoom) }
+            self.queue.asyncAfter(deadline: .now() + duration, execute: stop)
+        }
     }
 
-    /// Pan and tilt for auto tracking: speeds -1 to 1, sent as given, without counting as a manual move.
-    public func trackDrive(pan: Double, tilt: Double, camera: UUID) {
-        with(camera) { $0.drive(pan: max(-1, min(1, pan)), tilt: max(-1, min(1, tilt))) }
+    public func cancelTrackingMotion(camera: UUID) {
+        queue.async { self.finishTrackingPulse(camera) }
+    }
+
+    private func finishTrackingPulse(_ camera: UUID) {
+        guard let stop = trackingStops.removeValue(forKey: camera) else { return }
+        stop.cancel()
+        links[camera]?.drive(pan: 0, tilt: 0)
+        links[camera]?.zoom(0)
     }
 
     private func with(_ id: UUID? = nil, _ f: @escaping (PTZLink) -> Void) {

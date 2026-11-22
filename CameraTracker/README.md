@@ -17,7 +17,8 @@ own preferences and bundle identifier.
 3. Wait for both VISCA and RTSP to connect. While the camera is off air, click
    someone in the preview or use **Start Tracking** to follow the person nearest
    the center. **Stop** or Escape stops tracking and continuous manual motion.
-   Auto zoom starts off. Hold a directional control for manual pan or tilt.
+   Auto zoom starts off. If the app loses the subject, click the person again.
+   Hold a directional control for manual pan or tilt.
 
 The app runs on macOS 14 or later. The downloadable test build is ad hoc signed.
 

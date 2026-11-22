@@ -103,7 +103,7 @@ struct TrackerView: View {
                         Text("Camera preview").foregroundStyle(.white.opacity(0.7))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    if let box = tracking?.target?.box {
+                    if tracking?.phase == .following, let box = tracking?.target?.box {
                         Rectangle().stroke(.green, lineWidth: 2)
                             .frame(width: box.width * width, height: box.height * height)
                             .offset(x: box.minX * width, y: box.minY * height)
@@ -134,7 +134,7 @@ struct TrackerView: View {
                     if let camera { tracker.setSize(camera.id, size) }
                 }
                 Toggle("Auto zoom", isOn: $autoZoom)
-                    .onChange(of: autoZoom) { _, value in tracker.config.trackZoom = value }
+                    .onChange(of: autoZoom) { _, value in tracker.autoZoom = value }
                 Spacer()
                 Text(message ?? trackingStatus).font(.callout).foregroundStyle(.secondary)
             }
@@ -159,7 +159,8 @@ struct TrackerView: View {
         switch tracking?.phase {
         case .starting: return "Looking for a person"
         case .following: return "Tracking"
-        case .searching, .lost: return "Subject lost — holding shot"
+        case .searching: return "Looking for the selected person"
+        case .lost: return "Subject lost. Click the person again."
         case nil: return "Tracking off"
         }
     }
