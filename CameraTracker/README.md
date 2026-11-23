@@ -1,11 +1,15 @@
-# Camera Tracker
+# Harvest Camera Tracker
 
-A macOS app that tracks on one selected camera at a time adapted from Churchfront Video. Camera Tracker uses
-Apple Vision for person tracking, RTSP for the preview, and VISCA over TCP for
-PTZOptics movement. It runs independently of the ATEM and NDI. The app has its
-own preferences and bundle identifier.
+Automatic person tracking and PTZ camera control for Harvest Community Church livestreams. The standalone app uses Apple Vision to follow a person, RTSP for the camera preview, and VISCA over TCP to move a PTZOptics camera. It tracks on one selected camera at a time and runs independently of ATEM and NDI.
 
-## Run on the Intel Mac
+## Download for Intel Mac
+
+The current build requires an **Intel Mac running macOS 14 or later**. The download is an Intel-only, ad hoc signed test build.
+
+1. Sign in to GitHub and open the [Intel build](https://github.com/matgdp/harvest-camera-tracker/actions/runs/45051770893).
+2. Under **Artifacts**, download **Camera-Tracker-Intel** and extract the ZIP. If it contains another ZIP, extract that too. The current app bundle is named `Camera Tracker.app`.
+
+## Set up and track
 
 1. Install FFmpeg with `brew install ffmpeg` if Homebrew is installed. The app
    checks `/usr/local/bin/ffmpeg` and `/opt/homebrew/bin/ffmpeg`.
@@ -21,8 +25,6 @@ own preferences and bundle identifier.
    the center. **Stop** or Escape stops tracking and continuous manual motion.
    Auto zoom starts off. If the app loses the subject, click the person again.
    Hold a directional control for manual pan or tilt.
-
-The app runs on macOS 14 or later. The downloadable test build is ad hoc signed.
 
 ## Build from source
 
