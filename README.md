@@ -1,4 +1,15 @@
-# Churchfront Video
+# Harvest Camera Tracker
+
+Automatic person tracking and PTZ camera control for Harvest Community Church livestreams. The standalone app follows a person in the camera preview and moves a PTZOptics camera over VISCA.
+
+- [Download the Intel build](https://github.com/matgdp/harvest-camera-tracker/actions/runs/45051770893) from **Artifacts** after signing in to GitHub. Select **Camera-Tracker-Intel**. The current build requires **an Intel Mac running macOS 14 or later**.
+- [Read the setup and build instructions](https://github.com/matgdp/harvest-camera-tracker/blob/standalone-camera-tracker/CameraTracker/README.md) for the standalone app.
+
+Harvest Camera Tracker was adapted from [Churchfront Video](https://github.com/Churchfront/churchfront-video). The original project documentation follows.
+
+---
+
+## Churchfront Video
 
 A simple ATEM control surface for church booths, with PTZ camera control and live
 camera previews. Part of the Churchfront App Suite (Churchfront Cues, Churchfront Screens,
@@ -31,7 +42,7 @@ executable is still `CueVideo` and the bundle ID is still `com.churchfront.cuevi
 the Swift package, targets and folders keep their CueVideo names, so existing setups,
 permissions and scripts keep working.
 
-## Setup file
+### Setup file
 
 Everything set up in the app is saved as plain JSON in
 `~/Library/Application Support/CueVideo/config.json`: the switcher address, the
@@ -39,7 +50,7 @@ M/E volunteers run, the source row, key buttons, cameras and each camera's saved
 shots. The app picks up edits to the file within a second, so a person or Claude
 can set Churchfront Video up by editing it. The camera admin login is never in this file.
 
-## Claude (MCP)
+### Claude (MCP)
 
 `Churchfront Video.app/Contents/MacOS/cuevideo-mcp` is an MCP server with a tool for every
 action in the app (status, Next/Live/Cut/Fade/Black, keys, record and stream,
@@ -58,7 +69,7 @@ Blackmagic devices, web pages), and `update_config` saves what the person confir
 ChatGPT's desktop app can't use local MCP servers, so this is Claude only for now.
 Camera tools refuse a camera that's on Live unless the call says `allow_live: true`.
 
-## Safeguards
+### Safeguards
 
 - **A camera is never left moving.** If Next is cut to Live while the joystick or an arrow key is held, the camera that was moving is stopped. Quitting Churchfront Video stops every camera it is moving, tracking included. Arrow keys let go when another window or app comes to the front. A stop that is waiting for a Canon camera is kept and re-sent if the request before it fails.
 - **Keys only work in the main window.** Space, Return, the number keys and the arrows do nothing in Setup, Video Routing, the Full Switcher, or while a dialog or popover is open.
@@ -67,7 +78,7 @@ Camera tools refuse a camera that's on Live unless the call says `allow_live: tr
 
 `swift test` runs the camera code against pretend cameras on this Mac and checks the stops go out.
 
-## Camera speed, exposure and color matching
+### Camera speed, exposure and color matching
 
 - **Manual speed:** a tortoise-to-hare dial under the joystick (0.25× to 2×) sets how fast the joystick, zoom and arrow keys move every camera (config `ptzSpeed`).
 - **Tracking speed:** auto tracking works in real angles. It reads each camera's angle of view and position about four times a second. It drives the camera at the person's own speed plus a correction toward the framing mark, and speeds up sharply near the frame edge. It also learns how fast the camera really turns for the speed it was asked for, so zoomed-in shots, or camera modes that slow panning at tele, still keep up.
@@ -77,7 +88,7 @@ Camera tools refuse a camera that's on Live unless the call says `allow_live: tr
   - `match_exposure` copies gain, shutter, iris and white balance from one camera to the others, snapped to each model's values.
   - `camera_snapshots` returns a picture from each camera with color measurements (average RGB, red÷green and blue÷green cast, brightness, clipping), so cameras can be compared and matched.
 
-## Video routing
+### Video routing
 
 **Engineer → Routing** (⇧⌘R) shows how pictures reach the screens:
 
@@ -87,13 +98,13 @@ Camera tools refuse a camera that's on Live unless the call says `allow_live: tr
 
 In the config file, this is `mixNames`, `screens` and `routes`. Claude can use `get_routing`, `route_screen` and `run_route_button`. `route_screen` refuses hidden outputs, such as the stream encoder, unless the call says `allow_hidden: true`.
 
-## Graphics and lower thirds previews (NDI)
+### Graphics and lower thirds previews (NDI)
 
 Tiles and the Next and Live monitors can show any NDI source, typically a Churchfront Screens screen with an NDI output added. In Setup, under Volunteer source row, pick the NDI picture for a non-camera source such as Graphics. Under Key buttons, pick an NDI source with alpha (such as Churchfront Screens' lower thirds sent with alpha). It is laid over the Next and Live pictures when the key is on them: on Live when it's on air, and on Next when it will be on air after the next Cut or Fade (a tied DSK or a key selected in the next transition).
 
 Previews use NDI's low-bandwidth preview stream, so they cost little network or processor time. They need the NDI runtime on this Mac (NDI Tools). In the config file, it's the `ndi` field on a source or key, with the exact name from Setup or Claude's `list_ndi_sources`. The preview shows what Churchfront Screens is drawing, not the switcher's actual output.
 
-## Auto tracking
+### Auto tracking
 
 **Track** (under the joystick) makes the Canon camera on Next follow the person nearest the middle of its shot. Click a person on the Next picture to follow them instead. Churchfront Video finds people and their body landmarks (eyes, shoulders, hips, ankles) in the camera's preview picture with Apple's Vision framework. It works out whether the shot is **shoulders up**, **waist up** or **full length**, and frames it the way a broadcast operator would:
 
@@ -107,11 +118,11 @@ The Close / Waist / Full buttons under Track reframe the shot. Zooming by hand k
 
 The preview runs slightly behind real time, so tracking suits someone walking the stage, not running. Follow speed (0.5 to 2), tilt on/off and zoom-to-hold-size are in Setup and the config file (`trackSpeed`, `trackTilt`, `trackZoom`). The framing numbers live in `ShotSize` in `Tracker.swift`. Claude can use `start_tracking`, `set_tracking_shot` and `stop_tracking`.
 
-### Telling people apart
+#### Telling people apart
 
 Tracking keeps to one person by what they look like (clothes, build and colouring, worked out on this Mac with Apple's Vision framework), as well as by where they were. When two people cross it stays with the one it was following. After losing sight it waits for that person and does not pick up whoever is nearest; the badge says "Lost them, looking" until they're back, and clicking a person on the picture follows them instead. It is not face recognition and stores nothing between runs. People dressed alike are harder to tell apart: then it carries on by position while they're in sight.
 
-## Stage scan
+### Stage scan
 
 **Engineer → Stage scan** (⇧⌘S), for before a service with everyone in place (rehearsal or soundcheck):
 
@@ -122,14 +133,14 @@ Tracking keeps to one person by what they look like (clothes, build and colourin
 
 The shots are for where people stood during the scan. Claude can use `scan_stage`, `label_stage_scan` and `start_tracking` with `person`.
 
-## Canon cameras take one controller at a time
+### Canon cameras take one controller at a time
 
 Only one session controls a Canon camera at a time. If another controller (another
 copy of Churchfront Video or Churchfront Cues, a Companion Canon connection, an RC-IP100) keeps
 claiming the same cameras, the two trade control and the joystick seems broken.
 Churchfront Video shows "waiting for control" when this happens; close the other one.
 
-## Testing without hardware
+### Testing without hardware
 
 `python3 Tools/fake_atem.py 9910 --cams` starts a pretend ATEM and three pretend
 VISCA cameras, then
@@ -141,6 +152,6 @@ live on a service.
 Keys: 1 to 0 put that source-row tile on Next, Shift plus a number cuts it to Live,
 Space cuts, Return fades, arrows move the camera on Next.
 
-## License
+### License
 
 Apache License 2.0 (see `LICENSE` and `NOTICE`). The bundled Figtree font is under the SIL Open Font License 1.1 (`Resources/OFL.txt`). The Churchfront name and logo are trademarks of Churchfront LLC and aren't covered by the license. Test with your own gear before using it in a service; it's provided as is.
